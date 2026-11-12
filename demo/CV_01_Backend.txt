@@ -1,0 +1,6 @@
+HỒ SƠ MẪU CV 01 - BACKEND
+Tóm tắt: Lập trình viên backend có kinh nghiệm xây dựng hệ thống quản lý bài viết.
+Kỹ năng: Node.js, Express.js, JavaScript, PostgreSQL, MongoDB, Docker, Git, REST API.
+Dự án: Xây dựng API xác thực người dùng, CRUD bài viết và phân quyền bằng Node.js.
+Tối ưu truy vấn PostgreSQL, triển khai bằng Docker, viết kiểm thử, xử lý sự cố.
+Đây là hồ sơ hoàn toàn giả lập cho mục đích minh họa đồ án.

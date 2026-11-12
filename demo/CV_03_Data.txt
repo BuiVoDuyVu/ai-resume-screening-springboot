@@ -1,0 +1,6 @@
+HỒ SƠ MẪU CV 03 - DATA
+Tóm tắt: Lập trình viên Python xử lý dữ liệu, xây dựng pipeline phân tích.
+Kỹ năng: Python, Pandas, SQL, PostgreSQL, Docker, Git, Machine Learning.
+Dự án: Làm sạch dữ liệu, thiết kế cơ sở dữ liệu PostgreSQL và tự động tạo báo cáo.
+Có kinh nghiệm kiểm thử script và quản lý mã nguồn bằng Git.
+Đây là hồ sơ hoàn toàn giả lập cho mục đích minh họa đồ án.

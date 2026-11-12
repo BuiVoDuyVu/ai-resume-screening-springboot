@@ -1,0 +1,19 @@
+target/
+.idea/
+.vscode/
+*.log
+.env
+.env.*
+!.env.example
+.local/
+.DS_Store
+Thumbs.db
+*.class
+*.jar
+*.zip
+~$*
+uploads/
+exports/
+# Local report drafts, database evidence tooling, and submission intermediates.
+# Publish only the curated files in docs/images and docs/report.
+docs/Buoc_8_Bao_cao_Demo_Nop_bai/

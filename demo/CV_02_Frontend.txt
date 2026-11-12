@@ -1,0 +1,6 @@
+HỒ SƠ MẪU CV 02 - FRONTEND
+Tóm tắt: Lập trình viên giao diện web, chuyên phát triển trải nghiệm người dùng.
+Kỹ năng: HTML, CSS, JavaScript, TypeScript, React, Git, Figma.
+Dự án: Phát triển trang quản lý nội dung trên trình duyệt, thiết kế component,
+tích hợp REST API phía frontend và kiểm tra hiệu năng giao diện.
+Đây là hồ sơ hoàn toàn giả lập cho mục đích minh họa đồ án.

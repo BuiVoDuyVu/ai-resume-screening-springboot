@@ -1,0 +1,219 @@
+{
+  "info": {
+    "name": "AI CV Matching — Demo TF-IDF và AI BGE-M3",
+    "description": "Phân tích JD mẫu với ba CV giả lập bằng TF-IDF hoặc AI BGE-M3, lưu analysisId rồi tải báo cáo Excel. Khởi động backend trước khi gửi request; chọn các file demo nếu Postman chưa đọc được đường dẫn tương đối. Các request AI cần Ollama đang chạy và model bge-m3 đã được tải.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8081",
+      "type": "string"
+    },
+    {
+      "key": "analysisId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ollamaUrl",
+      "value": "http://127.0.0.1:11434",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Phân tích JD và 3 CV mẫu",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/analyze",
+        "description": "jobDescription và mode là Text; ba dòng files là File và cùng dùng tên files. Để Postman tự tạo Content-Type multipart/form-data cùng boundary.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "jobDescription",
+              "type": "text",
+              "value": "VỊ TRÍ: BACKEND DEVELOPER (NODE.JS)\nCông ty cần Backend Developer phát triển REST API cho hệ thống quản lý nội dung.\nYêu cầu kỹ thuật: Node.js, Express, JavaScript, PostgreSQL, MongoDB, Docker, Git, REST API.\nMong muốn có kinh nghiệm xây dựng API, tối ưu truy vấn cơ sở dữ liệu,\nviết unit test, xử lý lỗi và phối hợp triển khai dự án thực tế.\n"
+            },
+            {
+              "key": "mode",
+              "type": "text",
+              "value": "tfidf"
+            },
+            {
+              "key": "files",
+              "type": "file",
+              "src": "demo/CV_01_Backend.txt"
+            },
+            {
+              "key": "files",
+              "type": "file",
+              "src": "demo/CV_02_Frontend.txt"
+            },
+            {
+              "key": "files",
+              "type": "file",
+              "src": "demo/CV_03_Data.txt"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.unset('analysisId');",
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "const result = pm.response.json();",
+              "const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;",
+              "pm.test('analysisId là UUID hợp lệ', function () {",
+              "    pm.expect(result.analysisId).to.be.a('string').and.match(uuidPattern);",
+              "});",
+              "pm.test('Kết quả có đúng 3 CV', function () {",
+              "    pm.expect(result.candidates).to.be.an('array').with.lengthOf(3);",
+              "});",
+              "if (pm.response.code === 200 && typeof result.analysisId === 'string' && uuidPattern.test(result.analysisId)) {",
+              "    pm.collectionVariables.set('analysisId', result.analysisId);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Tải báo cáo Excel",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/export/{{analysisId}}",
+        "description": "Gửi request phân tích trước để tự lưu analysisId. Lưu response thành cv_matching_result.xlsx."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Response là báo cáo XLSX', function () {",
+              "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Kiểm tra embedding Ollama BGE-M3",
+      "request": {
+        "method": "POST",
+        "url": "{{ollamaUrl}}/api/embed",
+        "description": "Kiểm tra trực tiếp Ollama với hai chuỗi tiếng Việt. Cần tải model bằng ollama pull bge-m3 và giữ Ollama đang chạy.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"model\": \"bge-m3\",\n  \"input\": [\n    \"Mô tả công việc Backend Developer\",\n    \"CV ứng viên Backend Developer\"\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "const result = pm.response.json();",
+              "pm.test('Ollama trả về đúng 2 embedding', function () {",
+              "    pm.expect(result.embeddings).to.be.an('array').with.lengthOf(2);",
+              "});",
+              "pm.test('Hai embedding không rỗng và có cùng số chiều', function () {",
+              "    pm.expect(result.embeddings).to.be.an('array').with.lengthOf(2);",
+              "    result.embeddings.forEach(function (vector) {",
+              "        pm.expect(vector).to.be.an('array').that.is.not.empty;",
+              "        pm.expect(vector.every(Number.isFinite)).to.equal(true);",
+              "    });",
+              "    pm.expect(result.embeddings[1]).to.have.lengthOf(result.embeddings[0].length);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Phân tích JD và 3 CV bằng AI BGE-M3",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/analyze",
+        "description": "Gửi cùng JD và ba CV mẫu như request 1, đổi Text mode thành ai. Backend gọi Ollama BGE-M3; giữ ba dòng files ở kiểu File và để Postman tự tạo multipart Content-Type.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "jobDescription",
+              "type": "text",
+              "value": "VỊ TRÍ: BACKEND DEVELOPER (NODE.JS)\nCông ty cần Backend Developer phát triển REST API cho hệ thống quản lý nội dung.\nYêu cầu kỹ thuật: Node.js, Express, JavaScript, PostgreSQL, MongoDB, Docker, Git, REST API.\nMong muốn có kinh nghiệm xây dựng API, tối ưu truy vấn cơ sở dữ liệu,\nviết unit test, xử lý lỗi và phối hợp triển khai dự án thực tế.\n"
+            },
+            {
+              "key": "mode",
+              "type": "text",
+              "value": "ai"
+            },
+            {
+              "key": "files",
+              "type": "file",
+              "src": "demo/CV_01_Backend.txt"
+            },
+            {
+              "key": "files",
+              "type": "file",
+              "src": "demo/CV_02_Frontend.txt"
+            },
+            {
+              "key": "files",
+              "type": "file",
+              "src": "demo/CV_03_Data.txt"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.unset('analysisId');",
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "const result = pm.response.json();",
+              "const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;",
+              "pm.test('Kết quả sử dụng chế độ ai', function () {",
+              "    pm.expect(result.mode).to.equal('ai');",
+              "});",
+              "pm.test('analysisId là UUID hợp lệ', function () {",
+              "    pm.expect(result.analysisId).to.be.a('string').and.match(uuidPattern);",
+              "});",
+              "pm.test('Kết quả có đúng 3 CV', function () {",
+              "    pm.expect(result.candidates).to.be.an('array').with.lengthOf(3);",
+              "});",
+              "if (pm.response.code === 200 && result.mode === 'ai' && typeof result.analysisId === 'string' && uuidPattern.test(result.analysisId)) {",
+              "    pm.collectionVariables.set('analysisId', result.analysisId);",
+              "}"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

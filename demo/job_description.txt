@@ -1,0 +1,5 @@
+VỊ TRÍ: BACKEND DEVELOPER (NODE.JS)
+Công ty cần Backend Developer phát triển REST API cho hệ thống quản lý nội dung.
+Yêu cầu kỹ thuật: Node.js, Express, JavaScript, PostgreSQL, MongoDB, Docker, Git, REST API.
+Mong muốn có kinh nghiệm xây dựng API, tối ưu truy vấn cơ sở dữ liệu,
+viết unit test, xử lý lỗi và phối hợp triển khai dự án thực tế.

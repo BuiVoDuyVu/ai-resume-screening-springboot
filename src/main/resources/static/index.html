@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI CV Matching • Java Spring Boot</title>
+<style>
+:root{font-family:system-ui,Arial,sans-serif;color:#132238;background:#f5f7fc}
+*{box-sizing:border-box}main{max-width:1000px;margin:32px auto;padding:0 18px}
+header{margin-bottom:24px}h1{margin:0 0 6px}small,.note{color:#64748b}
+.panel{background:white;border:1px solid #e1e8f0;border-radius:14px;padding:24px;margin:18px 0;box-shadow:0 6px 24px #1834610a}
+label{display:block;font-weight:600;margin:10px 0 6px}textarea{min-height:170px;width:100%;padding:14px;border:1px solid #cbd5e1;border-radius:8px}
+input[type=file],select{width:100%;border:1px solid #cbd5e1;padding:12px;border-radius:8px;background:white}
+button,a.download{background:#0f5bd3;color:white;border:0;padding:12px 20px;border-radius:9px;cursor:pointer;display:inline-block;text-decoration:none;margin-top:14px}
+button:disabled{opacity:.5;cursor:wait}table{border-collapse:collapse;width:100%;margin-top:14px;min-width:700px}td,th{text-align:left;border-bottom:1px solid #e2e8f0;padding:12px;font-size:14px}
+th{background:#f1f5f9}.scroll{overflow-x:auto}.err{color:#b42318}.ok{color:#087443}.pill{background:#e0f2fe;border-radius:8px;padding:3px 7px}
+.section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.section-heading h2{margin:0}.section-heading button{margin:0}
+.history-actions{display:flex;gap:8px;white-space:nowrap}.history-actions button{margin:0;padding:8px 12px}.secondary{background:#e8eef8;color:#164782}.danger{background:#fff1f0;color:#b42318}.history-preview{max-width:340px;overflow-wrap:anywhere}
+</style></head><body><main>
+<header><h1>AI Resume Screening &amp; JD Matching</h1><small>Đồ án Option 2 • Java Spring Boot • Hỗ trợ đánh giá kỹ thuật, không tự động tuyển dụng</small></header>
+<div class="panel"><form id="f">
+<label for="jd">1. Mô tả công việc (JD)</label>
+<textarea id="jd" required>Vị trí Backend Developer (Node.js). Yêu cầu: JavaScript, Node.js, Express, PostgreSQL, MongoDB, Docker, Git, REST API. Xây dựng API và tối ưu cơ sở dữ liệu.</textarea>
+<label for="files">2. Chọn 1–10 CV (PDF / DOCX / TXT, tối đa 5 MB/file)</label>
+<input id="files" type="file" accept=".pdf,.docx,.txt" multiple required>
+<label for="mode">3. Chọn phương pháp so khớp</label>
+<select id="mode"><option value="tfidf">TF-IDF — không cần Ollama</option><option value="ai">AI BGE-M3 — cần Ollama</option></select>
+<button id="submit" type="submit">Phân tích CV</button><p id="status" role="status" aria-live="polite"></p>
+</form></div>
+<section class="panel" id="results" hidden><h2>Kết quả so khớp kỹ thuật</h2><p id="result-context" class="note" hidden></p><p id="req"></p><div class="scroll"><table><thead><tr><th>CV</th><th>Điểm</th><th>Độ tương đồng</th><th>Khớp</th><th>Kỹ năng tìm thấy</th><th>Chưa tìm thấy</th></tr></thead><tbody id="rows"></tbody></table></div><a id="export" class="download">Xuất Excel</a></section>
+<section class="panel" aria-labelledby="history-title">
+<div class="section-heading"><h2 id="history-title">Lịch sử phân tích</h2><button id="refresh-history" class="secondary" type="button">Làm mới lịch sử</button></div>
+<p class="note">Hiển thị 50 lần phân tích gần nhất. Chỉ lưu JD, tên CV và kết quả; không lưu tệp hoặc toàn văn CV.</p>
+<p id="history-status" role="status" aria-live="polite"></p>
+<div class="scroll"><table id="history-table" hidden><thead><tr><th>Thời gian</th><th>Phương pháp</th><th>Số CV</th><th>JD</th><th>Thao tác</th></tr></thead><tbody id="history-rows"></tbody></table></div>
+</section>
+<p class="note">Điểm tính theo công thức 60% độ tương đồng + 40% tỷ lệ kỹ năng. Điểm không phải xác suất đủ năng lực. Cần người tuyển dụng đánh giá thủ công.</p>
+</main><script>
+const f=document.querySelector('#f'),s=document.querySelector('#status'),submit=document.querySelector('#submit');
+const historyStatus=document.querySelector('#history-status'),historyRows=document.querySelector('#history-rows'),historyTable=document.querySelector('#history-table'),refreshButton=document.querySelector('#refresh-history');
+let currentAnalysisId=null,isAnalyzing=false,historyBusy=false;
+function modeLabel(mode){return mode==='ai'?'AI BGE-M3':mode==='tfidf'?'TF-IDF':String(mode);}
+function formatDate(value){const date=new Date(value);return Number.isNaN(date.getTime())?'Không rõ':date.toLocaleString('vi-VN');}
+function updateHistoryControls(){submit.disabled=historyBusy||isAnalyzing;refreshButton.disabled=historyBusy||isAnalyzing;for(const button of historyRows.querySelectorAll('button'))button.disabled=historyBusy||isAnalyzing;}
+function setHistoryBusy(value){historyBusy=value;updateHistoryControls();}
+async function requestJson(url,options){const response=await fetch(url,options);const data=await response.json();if(!response.ok)throw new Error(data.message||'Không thực hiện được yêu cầu.');return data;}
+function renderAnalysis(data,contextLabel=''){
+ document.querySelector('#req').textContent='JD yêu cầu: '+data.requiredSkills.join(', ');
+ const rows=document.querySelector('#rows');rows.replaceChildren();
+ for(const x of data.candidates){const tr=document.createElement('tr');
+  for(const value of [x.fileName,x.technicalScore+'/100',x.similarity+'%',x.matchedCount+'/'+x.requiredCount,x.matchedSkills.join(', '),x.missingSkills.join(', ')]){
+   const td=document.createElement('td');td.textContent=String(value);tr.appendChild(td);}rows.appendChild(tr);}
+ currentAnalysisId=data.analysisId;
+ document.querySelector('#export').href='/api/export/'+encodeURIComponent(data.analysisId);document.querySelector('#results').hidden=false;
+ const context=document.querySelector('#result-context');context.textContent=contextLabel;context.hidden=!contextLabel;
+}
+function clearResults(){currentAnalysisId=null;document.querySelector('#results').hidden=true;document.querySelector('#rows').replaceChildren();document.querySelector('#req').textContent='';document.querySelector('#export').removeAttribute('href');document.querySelector('#result-context').textContent='';}
+async function refreshHistory(successMessage=''){
+ setHistoryBusy(true);historyStatus.textContent='Đang tải lịch sử...';historyStatus.className='note';
+ try{const items=await requestJson('/api/analyses?limit=50');historyRows.replaceChildren();
+  for(const item of items){const tr=document.createElement('tr');
+   for(const value of [formatDate(item.createdAt),modeLabel(item.mode),item.candidateCount,item.jobDescriptionPreview]){const td=document.createElement('td');td.textContent=String(value);if(tr.children.length===3)td.className='history-preview';tr.appendChild(td);}
+   const actions=document.createElement('td'),controls=document.createElement('div');controls.className='history-actions';
+   const load=document.createElement('button');load.type='button';load.className='secondary';load.textContent='Xem kết quả';load.addEventListener('click',()=>loadAnalysis(item.analysisId));
+   const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent='Xóa';remove.addEventListener('click',()=>deleteAnalysis(item.analysisId));
+   controls.append(load,remove);actions.appendChild(controls);tr.appendChild(actions);historyRows.appendChild(tr);}
+  historyTable.hidden=items.length===0;historyStatus.textContent=successMessage||(items.length?'Đã tải '+items.length+' lần phân tích.':'Chưa có lịch sử phân tích.');historyStatus.className=successMessage?'ok':'note';
+ }catch(err){historyStatus.textContent='Không tải được lịch sử: '+err.message;historyStatus.className='err';}finally{setHistoryBusy(false);}
+}
+async function loadAnalysis(id){
+ if(historyBusy||isAnalyzing)return;setHistoryBusy(true);historyStatus.textContent='Đang mở kết quả đã lưu...';historyStatus.className='note';
+ try{const data=await requestJson('/api/analyses/'+encodeURIComponent(id));document.querySelector('#jd').value=data.jobDescription;document.querySelector('#mode').value=data.mode;document.querySelector('#files').value='';
+  renderAnalysis(data,'Kết quả đã lưu lúc '+formatDate(data.createdAt)+' · '+modeLabel(data.mode));
+  s.textContent='Đã mở kết quả '+data.candidates.length+' CV từ lịch sử. Chọn lại tệp CV nếu muốn phân tích mới.';s.className='ok';
+  historyStatus.textContent='Đã mở kết quả đã lưu.';historyStatus.className='ok';
+ }catch(err){historyStatus.textContent='Không mở được kết quả: '+err.message;historyStatus.className='err';}finally{setHistoryBusy(false);}
+}
+async function deleteAnalysis(id){
+ if(historyBusy||isAnalyzing||!confirm('Xóa lần phân tích này và toàn bộ kết quả liên quan? Thao tác này không thể hoàn tác.'))return;
+ setHistoryBusy(true);historyStatus.textContent='Đang xóa kết quả...';historyStatus.className='note';
+ try{const response=await fetch('/api/analyses/'+encodeURIComponent(id),{method:'DELETE'});if(!response.ok){const data=await response.json();throw new Error(data.message||'Không xóa được kết quả.');}
+  if(currentAnalysisId===id){clearResults();s.textContent='Đã xóa kết quả đang hiển thị.';s.className='note';}
+  await refreshHistory('Đã xóa lần phân tích.');
+ }catch(err){historyStatus.textContent='Không xóa được kết quả: '+err.message;historyStatus.className='err';}finally{setHistoryBusy(false);}
+}
+refreshButton.addEventListener('click',()=>refreshHistory());
+f.addEventListener('submit',async(e)=>{e.preventDefault();if(historyBusy||isAnalyzing)return;isAnalyzing=true;submit.disabled=true;updateHistoryControls();s.textContent='Đang xử lý...';s.className='';
+ const fd=new FormData();fd.append('jobDescription',document.querySelector('#jd').value);fd.append('mode',document.querySelector('#mode').value);
+ for(const file of document.querySelector('#files').files)fd.append('files',file);
+ try{const data=await requestJson('/api/analyze',{method:'POST',body:fd});renderAnalysis(data);
+ s.textContent='Phân tích thành công '+data.candidates.length+' CV.';s.className='ok';
+ await refreshHistory();
+ }catch(err){s.textContent=err.message;s.className='err';}finally{isAnalyzing=false;submit.disabled=false;updateHistoryControls();}
+});
+refreshHistory();
+</script></body></html>
